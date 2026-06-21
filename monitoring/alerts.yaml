@@ -1,1 +1,74 @@
+groups:
+  - name: vision-moderation-slo-alerts
+    rules:
+      - alert: AvailabilityBurnFast
+        expr: |
+          (
+            sum(rate(http_requests_total{job="vision-moderation",code!~"2.."}[1h]))
+            /
+            sum(rate(http_requests_total{job="vision-moderation"}[1h]))
+          ) > (14.4 * (1 - 0.997))
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Availability error budget burning fast (1h window)"
+          description: "Error rate over the last hour exceeds 14.4x the sustainable burn rate for the 99.7% availability SLO, which would exhaust the 30-day error budget in under ~2 days if sustained."
+          runbook: "https://runbooks.example.com/vision-moderation/availability-burn-fast"
 
+      - alert: AvailabilityBurnSlow
+        expr: |
+          (
+            sum(rate(http_requests_total{job="vision-moderation",code!~"2.."}[6h]))
+            /
+            sum(rate(http_requests_total{job="vision-moderation"}[6h]))
+          ) > (6 * (1 - 0.997))
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Availability error budget burning slowly (6h window)"
+          description: "Error rate over the last 6 hours exceeds 6x the sustainable burn rate for the 99.7% availability SLO. Not urgent enough to page, but will exhaust the 30-day error budget early if left unaddressed."
+          runbook: "https://runbooks.example.com/vision-moderation/availability-burn-slow"    
+
+      - alert: LatencyP99High
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum(rate(http_request_duration_seconds_bucket{job="vision-moderation"}[5m])) by (le)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "P99 latency above 500ms SLO threshold"
+          description: "P99 end-to-end request latency has exceeded the 500ms SLO threshold for 5 minutes straight, breaching the latency_p99 SLO."
+          runbook: "https://runbooks.example.com/vision-moderation/latency-p99-high"    
+
+      - alert: DriftDetected
+        expr: |
+          max(
+            psi_score{job="vision-moderation", metric_type="feature_drift", feature=~"major_.*"}
+          ) by (feature) > 0.2
+        for: 1h
+        labels:
+          severity: ticket
+        annotations:
+          summary: "Input feature drift detected (PSI > 0.2)"
+          description: "Population Stability Index (PSI) for one or more major input features has exceeded 0.2, sustained for 1 hour, indicating significant drift from the training data distribution."
+          runbook: "https://runbooks.example.com/vision-moderation/drift-detected"
+
+      - alert: ModelVersionMismatch
+        expr: |
+          count(
+            model_serving_version{job="vision-moderation"}
+            unless on(instance)
+            model_registry_version{job="vision-moderation"}
+          ) > 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: "Replica serving unexpected model version"
+          description: "At least one replica's served model_version (from response headers) does not match the model_version recorded in the model registry, sustained for 5 minutes. This indicates a partial or failed deployment."
+          runbook: "https://runbooks.example.com/vision-moderation/model-version-mismatch"    

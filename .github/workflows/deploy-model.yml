@@ -22,9 +22,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint OpenAPI spec
-        uses: char0n/swagger-editor-validate@v1
-        with:
-          definition-file: openapi.yaml
+        run: npx --yes @redocly/cli@1.25.5 lint openapi.yaml
 
       - name: Lint Dockerfile (hadolint)
         uses: hadolint/hadolint-action@v3.1.0
